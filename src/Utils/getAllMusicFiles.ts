@@ -1,34 +1,30 @@
-import fs from "fs";
-import path from "path";
+import { App, TFile, TFolder } from "obsidian";
 
 const MUSIC_FILE_EXTENSIONS = ["mp3"];
 
-/**
- * Given a file path, builds a list of music files by recursively going through the file structure and finding
- * files with appropriate file extensions.
- * @param dirPath
- * @param fileArray
- */
-const getAllMusicFiles = (
-	dirPath: string,
-	fileArray: Array<string> | undefined = undefined
-) => {
-	const files = fs.readdirSync(dirPath);
+const getVaultMusicFiles = (app: App, folderPath: string): TFile[] => {
+	const folder = folderPath === "/" ? app.vault.getRoot() : app.vault.getAbstractFileByPath(folderPath);
+	
+	if (!folder || !(folder instanceof TFolder)) {
+		return [];
+	}
 
-	fileArray = fileArray || [];
+	const files: TFile[] = [];
+	const traverse = (currentFolder: TFolder) => {
+		currentFolder.children.forEach((child) => {
+			if (child instanceof TFolder) {
+				traverse(child);
+			} else if (
+				child instanceof TFile &&
+				MUSIC_FILE_EXTENSIONS.includes(child.extension.toLowerCase())
+			) {
+				files.push(child);
+			}
+		});
+	};
 
-	files.forEach((file) => {
-		const filePath = path.join(dirPath, file);
-		if (fs.statSync(filePath).isDirectory()) {
-			fileArray = getAllMusicFiles(filePath, fileArray);
-		} else if (
-			MUSIC_FILE_EXTENSIONS.includes(path.extname(filePath).slice(1))
-		) {
-			fileArray?.push(filePath);
-		}
-	});
-
-	return fileArray;
+	traverse(folder);
+	return files;
 };
 
-export default getAllMusicFiles;
+export default getVaultMusicFiles;

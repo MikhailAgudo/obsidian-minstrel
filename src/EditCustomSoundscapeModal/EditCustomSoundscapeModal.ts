@@ -1,6 +1,5 @@
-import { Modal, Setting } from "obsidian";
+import { Modal, Setting, TFolder } from "obsidian";
 import SoundscapesPlugin from "../../main";
-import ConfirmModal from "../ConfirmModal/ConfirmModal";
 import { CustomSoundscape } from "src/Types/Interfaces";
 
 class EditCustomSoundscapeModal extends Modal {
@@ -31,7 +30,7 @@ class EditCustomSoundscapeModal extends Modal {
 
 		contentEl.empty();
 
-		contentEl.createEl("h2", { text: "Add custom soundscape" });
+		contentEl.createEl("h2", { text: "Edit custom soundscape" });
 
 		new Setting(contentEl)
 			.setName("Soundscape name")
@@ -56,98 +55,32 @@ class EditCustomSoundscapeModal extends Modal {
 				});
 			});
 
-		this._customSoundscape.tracks.forEach((track, index) => {
-			new Setting(contentEl)
-				.setName(`Track #${index + 1}`)
-				.setHeading()
-				.addButton((component) => {
-					component.setButtonText("Remove track");
-					component.setClass("mod-warning");
+		new Setting(contentEl)
+			.setName("Folder")
+			.setDesc(`Which folder contains the MP3 files for this soundscape?`)
+			.addDropdown((component) => {
+				const folders = this.app.vault
+					.getAllLoadedFiles()
+					.filter((f) => f instanceof TFolder);
 
-					component.onClick(() => {
-						new ConfirmModal(
-							this.app,
-							() => {
-								this._customSoundscape.tracks.splice(index, 1);
-								this.display();
-							},
-							"Remove track",
-							`This will remove "${track.name}" from your custom soundscape. Are you sure?`,
-							"Remove"
-						).open();
-					});
+				folders.forEach((folder) => {
+					component.addOption(folder.path, folder.path === "/" ? "Vault Root" : folder.path);
 				});
 
-			new Setting(contentEl)
-				.setName("Track name")
-				.setDesc(`Name of the track`)
-				.addText((component) => {
-					component.setValue(track.name);
+				component.setValue(this._customSoundscape.folder);
 
-					if (component.getValue().trim() === "") {
-						component.inputEl.addClass(
-							"soundscapes-validation-error"
-						);
-					} else {
-						component.inputEl.removeClass(
-							"soundscapes-validation-error"
-						);
-					}
-
-					component.onChange((value: string) => {
-						this._customSoundscape.tracks[index].name = value;
-					});
-
-					component.inputEl.addEventListener("blur", () => {
-						this.display();
-					});
+				component.onChange((value: string) => {
+					this._customSoundscape.folder = value;
+					this.display();
 				});
-
-			new Setting(contentEl)
-				.setName("Youtube id")
-				.setDesc(`Id of the Youtube video for the track`)
-				.addText((component) => {
-					component.setValue(track.id);
-
-					if (component.getValue().trim() === "") {
-						component.inputEl.addClass(
-							"soundscapes-validation-error"
-						);
-					} else {
-						component.inputEl.removeClass(
-							"soundscapes-validation-error"
-						);
-					}
-
-					component.onChange((value: string) => {
-						this._customSoundscape.tracks[index].id = value;
-					});
-
-					component.inputEl.addEventListener("blur", () => {
-						this.display();
-					});
-				});
-		});
-
-		new Setting(contentEl).addButton((component) => {
-			component.setButtonText("Add new track").onClick(() => {
-				this._customSoundscape.tracks.push({
-					name: "",
-					id: "",
-				});
-				this.display();
 			});
-		});
 
 		new Setting(contentEl).addButton((component) => {
 			component.setButtonText("Save custom soundscape");
 
 			if (
 				this._customSoundscape.name.trim() === "" ||
-				this._customSoundscape.tracks.some(
-					(track) =>
-						track.name.trim() === "" || track.id.trim() === ""
-				)
+				this._customSoundscape.folder.trim() === ""
 			) {
 				component.setDisabled(true);
 				component.setClass("soundscapes-button-disabled");

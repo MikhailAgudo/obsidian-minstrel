@@ -3,31 +3,14 @@ import { PLAYER_STATE, SOUNDSCAPE_TYPE } from "./Enums";
 export interface CustomSoundscape {
 	id: string;
 	name: string;
-	tracks: CustomSoundscapeTrack[];
-}
-
-export interface CustomSoundscapeTrack {
-	name: string;
-	id: string;
+	folder: string;
 }
 
 export interface Soundscape {
 	id: string;
 	name: string;
 	nowPlayingText: string;
-	isLiveVideo: boolean;
-	youtubeId: string;
 	type: SOUNDSCAPE_TYPE;
-}
-
-// Documentation: https://developers.google.com/youtube/iframe_api_reference
-export interface Player {
-	playVideo(): void;
-	pauseVideo(): void;
-	seekTo(position: number): void;
-	getDuration(): number;
-	setVolume(volume: Number): void;
-	loadVideoById(options: { videoId: String | undefined }): void;
 }
 
 export interface LocalMusicFile {

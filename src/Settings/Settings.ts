@@ -6,7 +6,6 @@ import EditCustomSoundscapeModal from "src/EditCustomSoundscapeModal/EditCustomS
 import SOUNDSCAPES from "src/Soundscapes";
 import { SOUNDSCAPE_TYPE } from "src/Types/Enums";
 import { CustomSoundscape, LocalMusicFile } from "src/Types/Interfaces";
-import electron from "electron";
 
 export interface SoundscapesPluginSettings {
 	soundscape: string;
@@ -57,7 +56,7 @@ export class SoundscapesSettingsTab extends PluginSettingTab {
 
 				this.plugin.settings.customSoundscapes.forEach(
 					(customSoundscape) => {
-						if (customSoundscape.tracks.length > 0) {
+						if (customSoundscape.folder) {
 							component.addOption(
 								`${SOUNDSCAPE_TYPE.CUSTOM}_${customSoundscape.id}`,
 								customSoundscape.name
@@ -101,14 +100,14 @@ export class SoundscapesSettingsTab extends PluginSettingTab {
 
 		containerEl.createEl("h1", { text: "Custom soundscapes" });
 		containerEl.createEl("p", {
-			text: "Custom soundscapes allow you to create your own playlists of youtube videos that can be selected as a soundscape.",
+			text: "Custom soundscapes allow you to create your own playlists by selecting a folder in your Obsidian Vault.",
 		});
 
 		this.plugin.settings.customSoundscapes.forEach(
 			(customSoundscape, index) => {
 				new Setting(containerEl)
 					.setName(customSoundscape.name)
-					.setDesc(`${customSoundscape.tracks.length} tracks`)
+					.setDesc(`Folder: ${customSoundscape.folder}`)
 					.addButton((component) => {
 						component.setButtonText("Edit");
 
@@ -172,7 +171,7 @@ export class SoundscapesSettingsTab extends PluginSettingTab {
 				.onClick(() => {
 					new EditCustomSoundscapeModal(
 						this.plugin,
-						{ id: uuidv4(), name: "", tracks: [] },
+						{ id: uuidv4(), name: "", folder: "/" },
 						(customSoundscape: CustomSoundscape) => {
 							this.plugin.settings.customSoundscapes.push(
 								customSoundscape
@@ -195,33 +194,24 @@ export class SoundscapesSettingsTab extends PluginSettingTab {
 			.setDesc(
 				`Path to where your music files are located. Plugin will also search through all subfolders of the provided folder.`
 			)
-			.addText((component) => {
-				component.setDisabled(true);
-				component.setValue(this.plugin.settings.myMusicFolderPath);
-			})
-			.addExtraButton((component) => {
-				component.setIcon("folder-open");
-				component.setTooltip("Select folder");
+			.addDropdown((component) => {
+				const folders = this.plugin.app.vault
+					.getAllLoadedFiles()
+					.filter((f) => f.hasOwnProperty("children"));
 
-				component.onClick(() => {
-					// @ts-ignore
-					electron.remote.dialog
-						.showOpenDialog({
-							properties: ["openDirectory"],
-							title: "Select a folder",
-						})
-						.then((result: any) => {
-							if (!result.canceled) {
-								this.plugin.settings.myMusicFolderPath =
-									result.filePaths[0];
-								// We need to reset the index and force it to reindex now that we have a new path
-								this.plugin.settings.myMusicIndex = [];
-								this.plugin.saveSettings();
-								this.display();
-								this.plugin.indexMusicLibrary();
-								this.plugin.onSoundscapeChange();
-							}
-						});
+				folders.forEach((folder) => {
+					component.addOption(folder.path, folder.path === "/" ? "Vault Root" : folder.path);
+				});
+
+				component.setValue(this.plugin.settings.myMusicFolderPath);
+
+				component.onChange((value: string) => {
+					this.plugin.settings.myMusicFolderPath = value;
+					this.plugin.settings.myMusicIndex = [];
+					this.plugin.saveSettings();
+					this.display();
+					this.plugin.indexMusicLibrary();
+					this.plugin.onSoundscapeChange();
 				});
 			});
 
