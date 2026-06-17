@@ -1,6 +1,7 @@
 import { Modal, Setting, TFolder } from "obsidian";
 import SoundscapesPlugin from "../../main";
 import { CustomSoundscape } from "src/Types/Interfaces";
+import { FolderSuggest } from "src/Utils/FolderSuggest";
 
 class EditCustomSoundscapeModal extends Modal {
 	_customSoundscape: CustomSoundscape;
@@ -58,17 +59,9 @@ class EditCustomSoundscapeModal extends Modal {
 		new Setting(contentEl)
 			.setName("Folder")
 			.setDesc(`Which folder contains the MP3 files for this soundscape?`)
-			.addDropdown((component) => {
-				const folders = this.app.vault
-					.getAllLoadedFiles()
-					.filter((f) => f instanceof TFolder);
-
-				folders.forEach((folder) => {
-					component.addOption(folder.path, folder.path === "/" ? "Vault Root" : folder.path);
-				});
-
+			.addText((component) => {
 				component.setValue(this._customSoundscape.folder);
-
+				new FolderSuggest(this.app, component.inputEl);
 				component.onChange((value: string) => {
 					this._customSoundscape.folder = value;
 					this.display();

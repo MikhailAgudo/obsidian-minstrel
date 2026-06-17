@@ -6,6 +6,7 @@ import EditCustomSoundscapeModal from "src/EditCustomSoundscapeModal/EditCustomS
 import SOUNDSCAPES from "src/Soundscapes";
 import { SOUNDSCAPE_TYPE } from "src/Types/Enums";
 import { CustomSoundscape, LocalMusicFile } from "src/Types/Interfaces";
+import { FolderSuggest } from "src/Utils/FolderSuggest";
 
 export interface SoundscapesPluginSettings {
 	soundscape: string;
@@ -29,7 +30,7 @@ export const DEFAULT_SETTINGS: SoundscapesPluginSettings = {
 	myMusicIndex: [],
 	myMusicFolderPath: "",
 	reindexFrequency: "5",
-	myMusicShuffle: false,
+	myMusicShuffle: true,
 	currentTrackIndex: 0,
 };
 
@@ -194,17 +195,9 @@ export class SoundscapesSettingsTab extends PluginSettingTab {
 			.setDesc(
 				`Path to where your music files are located. Plugin will also search through all subfolders of the provided folder.`
 			)
-			.addDropdown((component) => {
-				const folders = this.plugin.app.vault
-					.getAllLoadedFiles()
-					.filter((f) => f.hasOwnProperty("children"));
-
-				folders.forEach((folder) => {
-					component.addOption(folder.path, folder.path === "/" ? "Vault Root" : folder.path);
-				});
-
+			.addText((component) => {
 				component.setValue(this.plugin.settings.myMusicFolderPath);
-
+				new FolderSuggest(this.plugin.app, component.inputEl);
 				component.onChange((value: string) => {
 					this.plugin.settings.myMusicFolderPath = value;
 					this.plugin.settings.myMusicIndex = [];
