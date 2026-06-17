@@ -1,7 +1,7 @@
 {
 	"id": "minstrel",
 	"name": "Minstrel",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"minAppVersion": "0.15.0",
 	"description": "Minstrel lets you build local playlists that can be played and alternated. Fork of Soundscapes (credit to Andrew McGivery).",
 	"author": "Mikhail Agudo",
