@@ -12,7 +12,9 @@ import path from "path";
 import { parseBuffer } from "music-metadata";
 import Observable from "src/Utils/Observable";
 import { ReactView, SOUNDSCAPES_REACT_VIEW } from "./Views/ReactView";
-import getVaultMusicFiles from "src/Utils/getAllMusicFiles";
+import getVaultMusicFiles, {
+	getMusicFileMimeType,
+} from "src/Utils/getAllMusicFiles";
 import { LocalPlayerState } from "src/Types/Interfaces";
 import { PLAYER_STATE, SOUNDSCAPE_TYPE } from "src/Types/Enums";
 import SOUNDSCAPES from "src/Soundscapes";
@@ -203,7 +205,9 @@ export default class SoundscapesPlugin extends Plugin {
 		const musicPromises = files.map(async (file) => {
 			const arrayBuffer = await this.app.vault.readBinary(file);
 			const uint8Array = new Uint8Array(arrayBuffer);
-			const metadata = await parseBuffer(uint8Array, "audio/mpeg", {
+			const mimeType =
+				getMusicFileMimeType(file.extension) ?? "audio/mpeg";
+			const metadata = await parseBuffer(uint8Array, mimeType, {
 				skipCovers: true,
 			});
 
