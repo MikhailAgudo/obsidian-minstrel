@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS: SoundscapesPluginSettings = {
 	soundscape: "lofi",
 	volume: 25,
 	autoplay: false,
-	scrollSongTitle: true,
+	scrollSongTitle: false,
 	customSoundscapes: [],
 	myMusicIndex: [],
 	myMusicFolderPath: "",
