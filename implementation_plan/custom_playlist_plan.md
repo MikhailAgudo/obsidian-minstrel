@@ -1,54 +1,31 @@
-# Local Playlist Overhaul Implementation Plan
+# Implementation Plan: Custom Playlist Fixes & Features
 
-## Objective
-Completely remove the YouTube feature from the Obsidian Soundscapes (Minstrel) plugin and transform "Custom Soundscapes" into local folder-based playlists. The new playlists will use the native Obsidian API to pick a folder inside the vault, index all `.mp3` files in it, and play them using the local audio player efficiently.
+## Goal Description
+Resolve the issue with the first song playing 3 times when changing playlists, implement a true random playback system with a 10-song memory to prevent repeats, and replace the folder selection dropdown with a typed input featuring autocomplete suggestions.
 
-## Recommendations for Maintenance
-1. **Deprecate/Merge "My Music"**: Since "Custom Soundscapes" will now essentially be local playlists, they serve the exact same purpose as the "My Music" feature. We can just treat "My Music" as one of the Custom Soundscapes or remove it entirely to avoid maintaining two separate ways of playing local files.
-2. **Memory Efficiency (`app.vault.getResourcePath`)**: The current implementation of local music reads the entire `.mp3` file into a base64 string. This can cause severe memory issues for large playlists. We should use Obsidian's `app.vault.getResourcePath(TFile)` to stream the audio directly from the file system.
+## Phases of Execution
 
-> [!IMPORTANT] User Review Required
-> 1. Should we completely remove the "My Music" setting since "Custom Soundscapes" will now do the exact same thing (but allow you to make multiple)?
-> 2. Do you want to keep the "My Music" absolute OS path feature for files outside the Vault, or migrate everything to be strictly inside the Obsidian Vault?
+### Phase 1: Bug Fix - Duplicate Playback
+- **File**: `main.ts`
+- **Action**: Fix `populateChangeSoundscapeButton` by using `onchange` instead of `addEventListener` for the `changeSoundscapeSelect` element.
+- **Purpose**: Prevent duplicate listener accumulation that causes the song to fire multiple times on playlist switch.
 
----
+### Phase 2: Refactoring - True Randomness
+- **Files**: `main.ts`, `src/Utils/createShuffleQueue.ts`
+- **Action**: 
+  - Delete `createShuffleQueue.ts`.
+  - In `main.ts`, introduce a `recentTracks` array to store playback history.
+  - Rewrite `next()` to generate a true random index from the playlist that does not exist in the last 10 elements of `recentTracks`.
+  - Rewrite `previous()` to step backwards through the `recentTracks` array.
+- **Purpose**: Deliver non-repeating true randomness over a 10-song window and maintain a logical history structure.
 
-## Phase 1: Update Interfaces and Remove YouTube Types
-- [ ] **`src/Types/Interfaces.ts`**:
-  - Refactor `CustomSoundscape` to remove `tracks`. Add `folder: string` (to store the Vault path).
-  - Remove `youtubeId` and `isLiveVideo` from `Soundscape` interface.
-  - Remove the `Player` interface used for the YouTube iframe.
-  - Update `LocalMusicFile` to contain Vault-friendly fields (e.g., storing a `TFile` path instead of an absolute OS path).
-- [ ] **`src/Types/Enums.ts`**:
-  - Remove `SOUNDSCAPE_TYPE.STANDARD` since default YouTube soundscapes are being removed.
-- [ ] **`src/Soundscapes.ts`**:
-  - Delete or empty the default YouTube soundscapes list.
+### Phase 3: UX Improvement - Typed Folder Selection
+- **Files**: `src/Utils/FolderSuggest.ts`, `src/Settings/Settings.ts`, `src/EditCustomSoundscapeModal/EditCustomSoundscapeModal.ts`
+- **Action**:
+  - Create `FolderSuggest.ts` extending `AbstractInputSuggest<TFolder>` to hook into Obsidian's native suggestive text prompts.
+  - In `Settings.ts` and `EditCustomSoundscapeModal.ts`, replace the `addDropdown` folder selectors with `addText` fields and apply `FolderSuggest`.
+- **Purpose**: Replace the clunky and unscalable folder dropdown with a robust text input auto-completion tool.
 
-## Phase 2: Refactor Indexing & Remove fs/path dependencies
-- [ ] **`src/Utils/getAllMusicFiles.ts`**:
-  - Rewrite this function (or create a new one like `getVaultMusicFiles.ts`) to accept an Obsidian `TFolder` path instead of an absolute OS path.
-  - Use `app.vault.getFiles()` and filter by the selected folder path and `mp3` extension.
-- [ ] **`main.ts` (Music Indexing)**:
-  - Create a method `indexCustomSoundscape(folderPath: string)` that uses `app.vault.readBinary()` combined with `music-metadata` (`parseBuffer`) to extract ID3 tags natively inside Obsidian.
-
-## Phase 3: Update React Settings & Modals
-- [ ] **`src/EditCustomSoundscapeModal/EditCustomSoundscapeModal.ts`**:
-  - Remove the UI for adding individual YouTube tracks.
-  - Change the input to a folder dropdown selector. Use `app.vault.getAllLoadedFiles()` to list all `TFolder` objects and present them in a dropdown.
-- [ ] **`src/Settings/Settings.ts`**:
-  - Update setting descriptions to remove all mentions of YouTube.
-  - Clean up setting UI for anything related to the old YouTube implementation.
-
-## Phase 4: Overhaul `main.ts` Player Logic
-- [ ] **Remove YouTube API**:
-  - Delete `createPlayer` iframe script injection.
-  - Remove all `this.player` (YT.Player) references.
-  - Delete YouTube specific styles in `styles.scss` (like `soundscapesroot--hideyoutube`).
-- [ ] **Update Local Player for Custom Soundscapes**:
-  - Modify `onSoundscapeChange()` so that when a Custom Soundscape is selected, it sets `this.localPlayer.src` to the `app://` protocol resource URL using `app.vault.getResourcePath(tfile)`. This prevents loading massive base64 strings into memory.
-  - Update `play()`, `pause()`, `next()`, `previous()` to control `this.localPlayer` directly for Custom Soundscapes.
-
-## Phase 5: Clean Up and QA
-- [ ] Remove unused dependencies if any.
-- [ ] Thoroughly test switching between different folder playlists.
-- [ ] Verify shuffle and loop functionality with the newly structured local tracks.
+## Architectural Notes for Maintenance
+- Moving from a static shuffle queue to an active history array simplifies track navigation and supports more intuitive "previous" track behavior.
+- Using Obsidian's `AbstractInputSuggest` standardizes the UI for folder selection across the plugin, creating a single reusable component (`FolderSuggest`) instead of repeatedly pulling `.getAllLoadedFiles()`.
