@@ -21,7 +21,6 @@ import {
 	SoundscapesPluginSettings,
 	SoundscapesSettingsTab,
 } from "src/Settings/Settings";
-import createShuffleQueue from "src/Utils/createShuffleQueue";
 
 /**
  * This allows a "live-reload" of Obsidian when developing the plugin.
@@ -56,8 +55,8 @@ export default class SoundscapesPlugin extends Plugin {
 	soundscapeType: SOUNDSCAPE_TYPE;
 	currentTrackIndex: number = 0;
 	reindexTimer: NodeJS.Timeout | null = null;
-	shuffleQueue: number[] = [];
-	shuffleQueueSpot: number = 0;
+	recentTracks: number[] = [];
+	historyPosition: number = -1;
 
 	async onload() {
 		await this.loadSettings();
@@ -460,14 +459,11 @@ export default class SoundscapesPlugin extends Plugin {
 
 		this.changeSoundscapeSelect.value = this.settings.soundscape;
 
-		this.changeSoundscapeSelect.addEventListener(
-			"change",
-			(event: Event) => {
-				this.changeSoundscape(
-					(event?.target as HTMLSelectElement).value
-				);
-			}
-		);
+		this.changeSoundscapeSelect.onchange = (event: Event) => {
+			this.changeSoundscape(
+				(event?.target as HTMLSelectElement).value
+			);
+		};
 	}
 
 	/******************************************************************************************************************/
@@ -507,26 +503,16 @@ export default class SoundscapesPlugin extends Plugin {
 	previous() {
 		// Are we in shuffle mode?
 		if (this.settings.myMusicShuffle) {
-			// If Shuffle queue is empty, let's populate it
-			if (this.shuffleQueue.length === 0) {
-				this.shuffleQueue = createShuffleQueue(
-					this.settings.myMusicIndex
-				);
-				this.shuffleQueueSpot = 0;
-			}
-
-			if (this.shuffleQueueSpot === 0) {
-				// If we are at the beginning, wrap around to the end!
-				this.currentTrackIndex =
-					this.shuffleQueue[this.shuffleQueue.length - 1];
+			if (this.historyPosition > 0) {
+				this.historyPosition--;
+				this.currentTrackIndex = this.recentTracks[this.historyPosition];
 			} else {
-				// Otherwise, go to the previous song in the shuffle queue
-				this.shuffleQueueSpot--;
-				this.currentTrackIndex =
-					this.shuffleQueue[this.shuffleQueueSpot];
+				// If no history, just pick a random track
+				this.next();
+				return;
 			}
 		} else {
-			// Not in shuffle mode, go to next song
+			// Not in shuffle mode, go to previous song
 			if (this.currentTrackIndex === 0) {
 				this.currentTrackIndex =
 					this.settings.myMusicIndex.length - 1;
@@ -543,24 +529,35 @@ export default class SoundscapesPlugin extends Plugin {
 	next() {
 		// Are we in shuffle mode?
 		if (this.settings.myMusicShuffle) {
-			// If Shuffle queue is empty, let's populate it
-			if (this.shuffleQueue.length === 0) {
-				this.shuffleQueue = createShuffleQueue(
-					this.settings.myMusicIndex
-				);
-				this.shuffleQueueSpot = 0;
-			}
-
-			if (this.shuffleQueueSpot === this.shuffleQueue.length - 1) {
-				// If we get to the end of all possible songs to shuffle, go back to the start and reset the shuffle queue
-				this.currentTrackIndex = this.shuffleQueue[0];
-				this.shuffleQueue = [];
-				this.shuffleQueueSpot = 0;
+			// If we are navigating history and not at the end
+			if (this.historyPosition >= 0 && this.historyPosition < this.recentTracks.length - 1) {
+				this.historyPosition++;
+				this.currentTrackIndex = this.recentTracks[this.historyPosition];
 			} else {
-				// Otherwise, go to the next song in the shuffle queue
-				this.shuffleQueueSpot++;
-				this.currentTrackIndex =
-					this.shuffleQueue[this.shuffleQueueSpot];
+				// Generate a true random song
+				const totalSongs = this.settings.myMusicIndex.length;
+				if (totalSongs > 0) {
+					// We don't want to repeat a song within the last 10 songs (or totalSongs - 1 if smaller)
+					const recentLimit = Math.min(10, totalSongs - 1);
+					const recentSet = new Set(this.recentTracks.slice(-recentLimit));
+					
+					let newIndex = Math.floor(Math.random() * totalSongs);
+					// Fallback counter to prevent infinite loops in weird edge cases
+					let attempts = 0;
+					while (recentSet.has(newIndex) && attempts < 50) {
+						newIndex = Math.floor(Math.random() * totalSongs);
+						attempts++;
+					}
+
+					this.currentTrackIndex = newIndex;
+					this.recentTracks.push(newIndex);
+					
+					// Limit history size to prevent memory leaks over long sessions
+					if (this.recentTracks.length > 50) {
+						this.recentTracks.shift();
+					}
+					this.historyPosition = this.recentTracks.length - 1;
+				}
 			}
 		} else {
 			// Not in shuffle mode, go to next song
@@ -593,15 +590,15 @@ export default class SoundscapesPlugin extends Plugin {
 	}
 
 	/**
-	 * Turn on shuffle mode. When we toggle it on, reset the shuffle queue.
+	 * Turn on shuffle mode. When we toggle it on, reset the history.
 	 */
 	toggleShuffle() {
 		this.settings.myMusicShuffle = !this.settings.myMusicShuffle;
 		this.saveSettings();
 
 		if (this.settings.myMusicShuffle) {
-			this.shuffleQueue = [];
-			this.shuffleQueueSpot = 0;
+			this.recentTracks = [];
+			this.historyPosition = -1;
 		}
 	}
 
@@ -626,6 +623,8 @@ export default class SoundscapesPlugin extends Plugin {
 	 */
 	async changeSoundscape(soundscape: string) {
 		this.settings.soundscape = soundscape;
+		this.recentTracks = [];
+		this.historyPosition = -1;
 
 		if (this.settings.soundscape.startsWith(`${SOUNDSCAPE_TYPE.CUSTOM}_`)) {
 			this.currentTrackIndex = 0;
