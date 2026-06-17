@@ -1,10 +1,11 @@
-# Obsidian Soundscapes
+# Minstrel
 
-A plugin for Obsidian.MD that adds a music/ambiance player to the status bar to play Lofi beats, nature sounds, ambiance, relaxing music, and more.
+Minstrel is a plugin for Obsidian.MD that adds a music/ambience player to the status bar. This is a fork of Obsidian Soundscapes (credit to Andrew McGivery), with a different philosophy.
 
-![Screenshot of Obsidian Soundscapes player](screenshot1.png)
+- Instead of online-based music, Minstrel is focused on local .mp3 files within the vault.
+- Besides switching playlists, there's also an ambience player separate from playlists; the purpose is mainly for playing tabletop RPGs. If you want to play sounds of people in a market while having bard music, you can do that with Minstrel.
 
-![Screenshot of Obsidian Soundscapes player](screenshot2.png)
+Overall the true purpose of Minstrel is to aid in tabletop RPGs where both music and ambience soundtracks can be played at the same time, and customized depending on whatever situation you want.
 
 ## How to Install
 
