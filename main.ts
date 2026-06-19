@@ -144,6 +144,14 @@ export default class SoundscapesPlugin extends Plugin {
 		if (this.reindexTimer) {
 			clearTimeout(this.reindexTimer);
 		}
+
+		// Explicitly destroy the audio element to release all audio buffers
+		// and prevent memory leaks after the plugin is disabled/reloaded.
+		if (this.localPlayer) {
+			this.localPlayer.pause();
+			this.localPlayer.src = "";
+			this.localPlayer.load();
+		}
 	}
 
 	/**
@@ -538,29 +546,9 @@ export default class SoundscapesPlugin extends Plugin {
 				this.historyPosition++;
 				this.currentTrackIndex = this.recentTracks[this.historyPosition];
 			} else {
-				// Generate a true random song
-				const totalSongs = this.settings.myMusicIndex.length;
-				if (totalSongs > 0) {
-					// We don't want to repeat a song within the last 10 songs (or totalSongs - 1 if smaller)
-					const recentLimit = Math.min(10, totalSongs - 1);
-					const recentSet = new Set(this.recentTracks.slice(-recentLimit));
-					
-					let newIndex = Math.floor(Math.random() * totalSongs);
-					// Fallback counter to prevent infinite loops in weird edge cases
-					let attempts = 0;
-					while (recentSet.has(newIndex) && attempts < 50) {
-						newIndex = Math.floor(Math.random() * totalSongs);
-						attempts++;
-					}
-
-					this.currentTrackIndex = newIndex;
-					this.recentTracks.push(newIndex);
-					
-					// Limit history size to prevent memory leaks over long sessions
-					if (this.recentTracks.length > 50) {
-						this.recentTracks.shift();
-					}
-					this.historyPosition = this.recentTracks.length - 1;
+				// Generate a true random song using the shared helper
+				if (this.settings.myMusicIndex.length > 0) {
+					this.currentTrackIndex = this.pickRandomTrackIndex();
 				}
 			}
 		} else {
@@ -572,6 +560,38 @@ export default class SoundscapesPlugin extends Plugin {
 			}
 		}
 		this.onSoundscapeChange();
+	}
+
+	/**
+	 * Picks a random track index that has not been played in the last 10 songs.
+	 * This is the single source of truth for shuffle randomization — used by
+	 * both next() and changeSoundscape() so the logic only lives in one place.
+	 * Returns 0 if the index is empty.
+	 */
+	pickRandomTrackIndex(): number {
+		const totalSongs = this.settings.myMusicIndex.length;
+		if (totalSongs === 0) return 0;
+
+		// We don't want to repeat a song within the last 10 songs (or totalSongs - 1 if smaller)
+		const recentLimit = Math.min(10, totalSongs - 1);
+		const recentSet = new Set(this.recentTracks.slice(-recentLimit));
+
+		let newIndex = Math.floor(Math.random() * totalSongs);
+		// Fallback counter to prevent infinite loops in edge cases (e.g. tiny playlists)
+		let attempts = 0;
+		while (recentSet.has(newIndex) && attempts < 50) {
+			newIndex = Math.floor(Math.random() * totalSongs);
+			attempts++;
+		}
+
+		this.recentTracks.push(newIndex);
+		// Cap history at 50 entries to prevent memory growth over long sessions
+		if (this.recentTracks.length > 50) {
+			this.recentTracks.shift();
+		}
+		this.historyPosition = this.recentTracks.length - 1;
+
+		return newIndex;
 	}
 
 	/**
@@ -631,7 +651,6 @@ export default class SoundscapesPlugin extends Plugin {
 		this.historyPosition = -1;
 
 		if (this.settings.soundscape.startsWith(`${SOUNDSCAPE_TYPE.CUSTOM}_`)) {
-			this.currentTrackIndex = 0;
 			const customSoundscape = this.getCurrentCustomSoundscape();
 			if (customSoundscape && customSoundscape.folder) {
 				const songs = await this.indexCustomSoundscape(
@@ -639,11 +658,20 @@ export default class SoundscapesPlugin extends Plugin {
 				);
 				this.settings.myMusicIndex = songs;
 			}
+			// Pick a random starting track when shuffle is on, otherwise start at 0.
+			// This ensures the first song on playlist load is not always the same.
+			this.currentTrackIndex = this.settings.myMusicShuffle
+				? this.pickRandomTrackIndex()
+				: 0;
 		}
 
 		if (this.settings.soundscape === SOUNDSCAPE_TYPE.MY_MUSIC) {
 			await this.indexMusicLibrary();
 			this.ribbonButton.show();
+			// Pick a random starting track when shuffle is on, otherwise start at 0.
+			this.currentTrackIndex = this.settings.myMusicShuffle
+				? this.pickRandomTrackIndex()
+				: 0;
 		} else {
 			this.ribbonButton.hide();
 		}
@@ -751,10 +779,13 @@ export default class SoundscapesPlugin extends Plugin {
 			const tfile = this.app.vault.getAbstractFileByPath(track.fullPath);
 
 			this.localPlayer.pause();
+			// Explicitly release the previous audio buffer to prevent memory accumulation
+			// over long sessions (which causes static/glitches in Chromium/Electron).
+			this.localPlayer.src = "";
+			this.localPlayer.load();
+
 			if (tfile && tfile instanceof TFile) {
 				this.localPlayer.src = this.app.vault.getResourcePath(tfile);
-			} else {
-				this.localPlayer.src = "";
 			}
 
 			const artist = track.artist ? `- ${track.artist}` : "";
